@@ -41,7 +41,6 @@ extern "C"
     }TargetClassHeader;
 
     IMPORT_AND_EXPORT PTargetScript CreateTargetScript(I64 Ring, CPI1 Name, CPI1 Source, CheckingType Type);
-
     IMPORT_AND_EXPORT void DestroyTargetScript(PTargetScript Script);
     IMPORT_AND_EXPORT BOOL ExecuteTargetScript(TargetScript Script, TargetClassHeader Header);
 }

@@ -12,5 +12,6 @@ BOOL CommonFree(PV Pointer);
 CPI1 CommonStrDup(CPI1 Str);
 
 #define StrDup CommonStrDup
+#define Deallocate(x) CommonFree(x); x = nullptr;
 
 #endif

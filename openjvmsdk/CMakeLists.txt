@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+
+include_directories(include)
+add_library(openjvmsdk SHARED src/instance.cc
+        include/jni_helper.h
+        src/jni_helper.cc)
+
+target_link_libraries(openjvmsdk PRIVATE scriptsdk MinHook ImGui)
