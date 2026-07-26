@@ -4,6 +4,7 @@
 #include <Windows.h>
 
 CPI1 Out_Throw_Buf = nullptr;
+ThrowCallbackImpl Out_Throw_Callback;
 
 PI1 CommonFormatImpl(const char *Fmt, ...) {
     va_list args;
@@ -70,6 +71,11 @@ CPI1 CommonCheckError() {
 
 void CommonIfErrorAbort() {
     if (!Out_Throw_Buf) return;
+
+    if (Out_Throw_Callback != nullptr) {
+        Out_Throw_Callback(Out_Throw_Buf);
+        return;
+    }
 
     printf("Exception: %s\n", Out_Throw_Buf);
     ExitProcess(-1);

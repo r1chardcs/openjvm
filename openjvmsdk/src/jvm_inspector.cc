@@ -3,6 +3,8 @@
 #include <string>
 
 #include "runtime_layer.h"
+#include "class_analyzer.h"
+
 #include <ImGui/imgui.h>
 
 Renderable GetRenderableJvmInspector() {
@@ -18,14 +20,6 @@ void RenderJvmInspector(RenderContext context) {
     static char blacklist[1024] = "";
     static char whitelist[1024] = "";
 
-    if (RuntimeInstance.State != RuntimeLayer::TargetState::SUCCESS) {
-        ImGui::Begin("Classes Inspector", nullptr, ImGuiWindowFlags_NoSavedSettings);
-        ImGui::SetWindowSize(ImVec2(800, 600), ImGuiCond_FirstUseEver);
-        ImGui::Text("Collecting data...");
-        ImGui::End();
-        return;
-    }
-
     auto classes = RuntimeInstance.Classes;
     auto classCount = RuntimeInstance.ClassesSize;
 
@@ -35,7 +29,8 @@ void RenderJvmInspector(RenderContext context) {
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Refresh")) {
-                CollectDataRuntimeLayer();
+                SetActionRuntimeLayer(RuntimeLayer::TargetAction::DEALLOCATE_DATA);
+                SetActionRuntimeLayer(RuntimeLayer::TargetAction::DATA_COLLECTED);
             }
             ImGui::EndMenu();
         }
@@ -78,13 +73,8 @@ void RenderJvmInspector(RenderContext context) {
 
             std::string className(cls.name);
 
-            bool isGenerated = className.find("$") != std::string::npos;
-            bool isPrimitive = className.find("[") != std::string::npos ||
-                               className == "int" || className == "long" ||
-                               className == "float" || className == "double" ||
-                               className == "boolean" || className == "byte" ||
-                               className == "char" || className == "short" ||
-                               className == "void";
+            const bool isGenerated = IsGenerateClass(&cls);
+            const bool isPrimitive = IsPrimitive(&cls);
 
             if (!showGenerated && isGenerated) continue;
             if (!showPrimitive && isPrimitive) continue;

@@ -22,7 +22,9 @@ void dllMain(void*) {
     CollectDataRuntimeLayer();
     SetRenderable(GetRenderableJvmInspector());
 
-    while (!GetAsyncKeyState(VK_DELETE)) {}
+    while (!GetAsyncKeyState(VK_DELETE)) {
+        UpdateRuntimeLayer();
+    }
     DestroyOverlay();
 }
 

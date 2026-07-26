@@ -8,11 +8,12 @@
 #include <common_exception.h>
 #include <common_system.h>
 #include <cstdio>
-
-#undef BOOL
+#include <iostream>
+#include <resources/Roboto_Medium.h>
 #include <Windows.h>
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+extern void CreateBaseImGuiStyle(ImGuiIO io);
 
 typedef BOOL(WINAPI* wglSwapBuffers_t)(HDC);
 static wglSwapBuffers_t original_wglSwapBuffers = nullptr;
@@ -69,6 +70,8 @@ static bool CreateMenuForWindow(HWND hwnd) {
     io.ConfigFlags |= ImGuiConfigFlags_NavNoCaptureKeyboard;
     io.IniFilename = nullptr;
     io.LogFilename = nullptr;
+
+    io.Fonts->AddFontFromMemoryTTF((void*)Resources::Roboto_Medium, Resources::Roboto_Medium_size);
 
     ImGui::StyleColorsDark();
     ImGui_ImplWin32_Init(hwnd);
@@ -132,6 +135,7 @@ static BOOL WINAPI detour_wglSwapBuffers(HDC unnamedParam1) {
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
+        CreateBaseImGuiStyle(ImGui::GetIO());
         if (current_renderable.callback) {
             current_renderable.callback({});
         }

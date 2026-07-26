@@ -23,22 +23,27 @@ typedef struct {
 }TransitionalClass;
 
 typedef struct {
-    enum class TargetState {
-        INITIALIZING, // Процесс инициализацируется (создает PJVM)
-        DATA_COLLECTION, // Собирает данные (переходные классы)
-        UNHANDLED_EXCEPTION, // Необработанное исключение
-        SUCCESS, // Успешно. Ошибок нет
-        NONE
+    enum class TargetAction {
+        INITIALIZE, // Инициализация JVM (JNI)
+        DATA_COLLECTED, // Сбор данных (Классов в райнтайме)
+        DEALLOCATE_DATA, // Очистка памяти (Классов в райнтме)
+        NONE // Ничего не делаем
     };
 
-    TargetState State;
+    TargetAction PreAction1 = TargetAction::NONE;
+    TargetAction PreAction2 = TargetAction::NONE;
+    TargetAction Action = TargetAction::NONE;
+
     PJVM JVM;
     COMMON_LIST(TransitionalClass, Classes)
 }RuntimeLayer;
 
 extern RuntimeLayer RuntimeInstance;
 
+BOOL SetActionRuntimeLayer(RuntimeLayer::TargetAction action);
+void UpdateRuntimeLayer();
 void InitializeRuntimeLayer();
 void CollectDataRuntimeLayer();
+void DeallocateRuntimeLayer();
 
 #endif

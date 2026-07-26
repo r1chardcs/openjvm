@@ -20,6 +20,8 @@
 
 #define _FORMAT(fmt, ...) CommonFormatImpl(fmt, ##__VA_ARGS__)
 
+typedef void(*ThrowCallbackImpl)(CPI1);
+
 void CommonThrow(const char* Msg);
 CPI1 CommonCheckError();
 PI1 CommonFormatImpl(const char* Fmt, ...);
@@ -27,5 +29,6 @@ void CommonIfErrorAbort();
 void CommonSleep(U64 Milliseconds);
 
 extern CPI1 Out_Throw_Buf;
+extern ThrowCallbackImpl Out_Throw_Callback;
 
 #endif

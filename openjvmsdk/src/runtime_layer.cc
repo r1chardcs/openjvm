@@ -7,42 +7,81 @@
 #include "common_memory.h"
 
 RuntimeLayer RuntimeInstance;
-#undef Deallocate
+
+BOOL SetActionRuntimeLayer(const RuntimeLayer::TargetAction action) {
+    if (RuntimeInstance.Action != RuntimeLayer::TargetAction::NONE) {
+        RuntimeInstance.PreAction2 = RuntimeInstance.PreAction1;
+        RuntimeInstance.PreAction1 = action;
+        return true;
+    }
+
+    RuntimeInstance.Action = action;
+    return true;
+}
+
+void UpdateRuntimeLayer() {
+    if (RuntimeInstance.Action == RuntimeLayer::TargetAction::NONE &&
+        RuntimeInstance.PreAction1 == RuntimeLayer::TargetAction::NONE &&
+        RuntimeInstance.PreAction2 == RuntimeLayer::TargetAction::NONE) {
+        return;
+        }
+
+    RuntimeLayer::TargetAction actions[3] = {
+        RuntimeInstance.Action,
+        RuntimeInstance.PreAction1,
+        RuntimeInstance.PreAction2
+    };
+
+    for (int i = 0; i < 3; i++) {
+        if (actions[i] == RuntimeLayer::TargetAction::NONE) continue;
+
+        switch (actions[i]) {
+            case RuntimeLayer::TargetAction::INITIALIZE:
+                InitializeRuntimeLayer();
+                break;
+            case RuntimeLayer::TargetAction::DATA_COLLECTED:
+                CollectDataRuntimeLayer();
+                break;
+            case RuntimeLayer::TargetAction::DEALLOCATE_DATA:
+                DeallocateRuntimeLayer();
+                break;
+            case RuntimeLayer::TargetAction::NONE:
+                break;
+        }
+    }
+
+    RuntimeInstance.Action = RuntimeLayer::TargetAction::NONE;
+    RuntimeInstance.PreAction1 = RuntimeLayer::TargetAction::NONE;
+    RuntimeInstance.PreAction2 = RuntimeLayer::TargetAction::NONE;
+}
+
+#ifdef Deallocate
+    #undef Deallocate // Для jvmti->Deallocate
+#endif
 
 void InitializeRuntimeLayer() {
-    RuntimeInstance.State = RuntimeLayer::TargetState::INITIALIZING;
     RuntimeInstance.JVM = CreateJVM(MethodGetJvm_JNI);
 
     if (const auto errBuf = CommonCheckError(); errBuf) {
-        RuntimeInstance.State = RuntimeLayer::TargetState::UNHANDLED_EXCEPTION;
         Throw(errBuf);
     }
 }
 
 void CollectDataRuntimeLayer() {
-    if (RuntimeInstance.State == RuntimeLayer::TargetState::UNHANDLED_EXCEPTION) return;
-    RuntimeInstance.State = RuntimeLayer::TargetState::DATA_COLLECTION;
-
     auto jvm = RuntimeInstance.JVM;
     if (!jvm || !jvm->jvmti || !jvm->env) {
-        RuntimeInstance.State = RuntimeLayer::TargetState::UNHANDLED_EXCEPTION;
-        return;
+        Throw("Invalid JVM");
     }
 
     jint class_count = 0;
     jclass* classes = nullptr;
     jvmtiError err = jvm->jvmti->GetLoadedClasses(&class_count, &classes);
     if (err != JVMTI_ERROR_NONE || class_count == 0 || classes == nullptr) {
-        RuntimeInstance.State = RuntimeLayer::TargetState::UNHANDLED_EXCEPTION;
-        return;
+        Throw("Invalid Getting Loaded Classes");
     }
 
     RuntimeInstance.ClassesSize = class_count;
     RuntimeInstance.Classes = static_cast<TransitionalClass*>(CommonCalloc(class_count, sizeof(TransitionalClass)));
-    if (!RuntimeInstance.Classes) {
-        RuntimeInstance.State = RuntimeLayer::TargetState::UNHANDLED_EXCEPTION;
-        return;
-    }
 
     JNIEnv* env = jvm->env;
     jclass classClass = env->FindClass("java/lang/Class");
@@ -117,6 +156,34 @@ void CollectDataRuntimeLayer() {
     if (classes) {
         jvm->jvmti->Deallocate((unsigned char*)classes);
     }
+}
 
-    RuntimeInstance.State = RuntimeLayer::TargetState::SUCCESS;
+void DeallocateRuntimeLayer() {
+
+    for (unsigned i = 0; i < RuntimeInstance.ClassesSize; i++) {
+        auto klass = RuntimeInstance.Classes[i];
+        for (unsigned j = 0; j < klass.FieldsSize; j++) {
+            auto meta = klass.Fields[j];
+            CommonFree((void*)meta.name);
+            CommonFree((void*)meta.signature);
+
+            meta.name = nullptr;
+            meta.signature = nullptr;
+        }
+
+        for (unsigned j = 0; j < klass.MethodsSize; j++) {
+            auto meta = klass.Methods[j];
+            CommonFree((void*)meta.name);
+            CommonFree((void*)meta.signature);
+
+            meta.name = nullptr;
+            meta.signature = nullptr;
+        }
+
+        CommonFree((void*)klass.name);
+        CommonFree(&klass);
+    }
+
+    RuntimeInstance.ClassesSize = 0;
+    RuntimeInstance.Classes = nullptr;
 }

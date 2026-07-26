@@ -17,6 +17,7 @@
 #pragma comment(lib, "opengl32.lib")
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
+extern void CreateBaseImGuiStyle(ImGuiIO io);
 
 struct ProcessEntry {
 	DWORD pid;
@@ -279,6 +280,7 @@ int main() {
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
+		CreateBaseImGuiStyle(ImGui::GetIO());
 		DrawGui(hwnd);
 
 		ImGui::Render();
