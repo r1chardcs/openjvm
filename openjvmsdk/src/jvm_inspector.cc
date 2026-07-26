@@ -1,11 +1,18 @@
 #include "jvm_inspector.h"
 
 #include <string>
+#include <vector>
+#include <unordered_map>
 
 #include "runtime_layer.h"
+#include "scripts.h"
+
 #include "class_analyzer.h"
 
 #include <ImGui/imgui.h>
+
+#include "common_memory.h"
+
 
 Renderable GetRenderableJvmInspector() {
     Renderable r;
@@ -13,7 +20,60 @@ Renderable GetRenderableJvmInspector() {
     return r;
 }
 
+std::string SanitizeClassName(const char* name) {
+    if (!name) return "";
+
+    std::string result;
+    result.reserve(strlen(name));
+
+    for (const char* p = name; *p; p++) {
+        unsigned char c = static_cast<unsigned char>(*p);
+
+        bool isAllowed = (c >= 'A' && c <= 'Z') ||
+                         (c >= 'a' && c <= 'z') ||
+                         (c >= '0' && c <= '9') ||
+                         c == '_' ||
+                         c == '$' ||
+                         c == '.';
+
+        if (isAllowed) {
+            result += *p;
+        } else {
+            result += '?';
+        }
+    }
+
+    return result;
+}
+
+static std::vector<std::string> SplitTokens(const char* raw) {
+    std::vector<std::string> tokens;
+    if (!raw || raw[0] == '\0') return tokens;
+
+    std::string s(raw);
+    size_t pos = 0;
+    while ((pos = s.find(',')) != std::string::npos) {
+        tokens.push_back(s.substr(0, pos));
+        s.erase(0, pos + 1);
+    }
+    tokens.push_back(s);
+
+    return tokens;
+}
+
+static bool MatchesAny(const std::vector<std::string>& tokens, const std::string& package) {
+    for (const auto& token : tokens) {
+        if (!token.empty() && package.find(token) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void RenderJvmInspector(RenderContext context) {
+    if (RuntimeInstance.Action != RuntimeLayer::TargetAction::NONE)
+        return;
+
     static bool showGenerated = false;
     static bool showPrimitive = false;
     static char packageFilter[256] = "";
@@ -29,8 +89,7 @@ void RenderJvmInspector(RenderContext context) {
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             if (ImGui::MenuItem("Refresh")) {
-                SetActionRuntimeLayer(RuntimeLayer::TargetAction::DEALLOCATE_DATA);
-                SetActionRuntimeLayer(RuntimeLayer::TargetAction::DATA_COLLECTED);
+                SetActionRuntimeLayer(RuntimeLayer::TargetAction::REFRESH_DATA_COLLECTED);
             }
             ImGui::EndMenu();
         }
@@ -63,15 +122,19 @@ void RenderJvmInspector(RenderContext context) {
     ImGui::EndGroup();
 
     ImGui::Separator();
-    ImGui::Text("Loaded Classes: %llu", classCount);
+    ImGui::Text("Loaded Classes: %llu", (unsigned long long)classCount);
     ImGui::Separator();
+
+    const bool hasPackageFilter = packageFilter[0] != '\0';
+    const std::vector<std::string> whitelistTokens = SplitTokens(whitelist);
+    const std::vector<std::string> blacklistTokens = SplitTokens(blacklist);
 
     if (ImGui::BeginChild("ClassTree", ImVec2(0, 0), true)) {
         for (U64 i = 0; i < classCount; i++) {
             auto& cls = classes[i];
             if (!cls.name) continue;
 
-            std::string className(cls.name);
+            std::string className = SanitizeClassName(cls.name);
 
             const bool isGenerated = IsGenerateClass(&cls);
             const bool isPrimitive = IsPrimitive(&cls);
@@ -85,45 +148,34 @@ void RenderJvmInspector(RenderContext context) {
                 package = className.substr(0, lastDot);
             }
 
-            if (strlen(packageFilter) > 0 && package.find(packageFilter) == std::string::npos) {
+            if (hasPackageFilter && package.find(packageFilter) == std::string::npos) {
                 continue;
             }
 
-            if (strlen(whitelist) > 0) {
-                std::string wl(whitelist);
-                size_t pos = 0;
-                bool found = false;
-                while ((pos = wl.find(',')) != std::string::npos) {
-                    std::string token = wl.substr(0, pos);
-                    if (package.find(token) != std::string::npos) {
-                        found = true;
-                        break;
-                    }
-                    wl.erase(0, pos + 1);
-                }
-                if (!found && package.find(wl) == std::string::npos) continue;
+            if (!whitelistTokens.empty() && !MatchesAny(whitelistTokens, package)) {
+                continue;
             }
 
-            if (strlen(blacklist) > 0) {
-                std::string bl(blacklist);
-                size_t pos = 0;
-                bool blocked = false;
-                while ((pos = bl.find(',')) != std::string::npos) {
-                    std::string token = bl.substr(0, pos);
-                    if (package.find(token) != std::string::npos) {
-                        blocked = true;
-                        break;
-                    }
-                    bl.erase(0, pos + 1);
-                }
-                if (blocked || package.find(bl) != std::string::npos) continue;
+            if (!blacklistTokens.empty() && MatchesAny(blacklistTokens, package)) {
+                continue;
             }
 
-            ImGui::PushID(i);
-            bool isOpen = ImGui::TreeNode(cls.name);
+            bool isChecked = cls.Check;
+
+            ImGui::PushID(&cls);
+
+            if (isChecked) {
+                ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 80, 80, 255));
+            }
+
+            bool isOpen = ImGui::TreeNode(className.c_str());
+
+            if (isChecked) {
+                ImGui::PopStyleColor();
+            }
 
             if (isOpen) {
-                if (cls.FieldsSize > 0) {
+                if (cls.FieldsSize > 0 && cls.Fields) {
                     if (ImGui::TreeNode("Fields")) {
                         for (U64 j = 0; j < cls.FieldsSize; j++) {
                             auto& field = cls.Fields[j];
@@ -135,7 +187,7 @@ void RenderJvmInspector(RenderContext context) {
                     }
                 }
 
-                if (cls.MethodsSize > 0) {
+                if (cls.MethodsSize > 0 && cls.Methods) {
                     if (ImGui::TreeNode("Methods")) {
                         for (U64 j = 0; j < cls.MethodsSize; j++) {
                             auto& method = cls.Methods[j];

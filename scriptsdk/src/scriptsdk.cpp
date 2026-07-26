@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <scriptsdk.h>
 
 #include "common_exception.h"
@@ -27,7 +28,6 @@ PTargetScript CreateTargetScript(I64 Ring, CPI1 Name, CPI1 Source, CheckingType 
 }
 
 BOOL ExecuteTargetScript(TargetScript Script, TargetClassHeader Header) {
-    py_initialize();
     py_exec(Script.source, "<script_string>", EXEC_MODE, nullptr);
 
     const auto func_name = py_name("check");
@@ -88,6 +88,5 @@ BOOL ExecuteTargetScript(TargetScript Script, TargetClassHeader Header) {
 
     BOOL result = py_tobool(py_retval());
 
-    py_finalize();
     return result;
 }

@@ -2,9 +2,16 @@
 
 #include <cstring>
 #include <iostream>
+#include <mutex>
+#include <unordered_map>
 
 #include "common_exception.h"
 #include "common_memory.h"
+#include "scripts.h"
+
+static std::unordered_map<std::string, bool> classCheckCache;
+
+std::recursive_mutex RuntimeLayerMutex;
 
 void GlobalErrorCallback(const char *Msg) {
     printf("FATAL ERROR\n");
@@ -14,7 +21,61 @@ void GlobalErrorCallback(const char *Msg) {
 
 RuntimeLayer RuntimeInstance;
 
-BOOL SetActionRuntimeLayer(const RuntimeLayer::TargetAction action) {
+TargetClassHeader ToTargetClassHeader(const TransitionalClass &klass) {
+    TargetClassHeader header = {};
+
+    header.Name = klass.name;
+    header.Size = 0;
+
+    header.FieldsSize = klass.FieldsSize;
+    header.Fields = static_cast<TargetFieldHeader*>(CommonCalloc(klass.FieldsSize, sizeof(TargetFieldHeader)));
+    for (U64 i = 0; i < klass.FieldsSize; i++) {
+        header.Fields[i].Name = klass.Fields[i].name;
+        header.Fields[i].Signature = klass.Fields[i].signature;
+    }
+
+    header.MethodsSize = klass.MethodsSize;
+    header.Methods = static_cast<TargetMethodHeader*>(CommonCalloc(klass.MethodsSize, sizeof(TargetMethodHeader)));
+    for (U64 i = 0; i < klass.MethodsSize; i++) {
+        header.Methods[i].Name = klass.Methods[i].name;
+        header.Methods[i].Signature = klass.Methods[i].signature;
+    }
+
+    return header;
+}
+
+BOOL CheckBaseTarget(const TransitionalClass &transitional_class) {
+    if (!transitional_class.name) return false;
+
+    std::string className(transitional_class.name);
+
+    std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
+
+    auto it = classCheckCache.find(className);
+    if (it != classCheckCache.end()) {
+        return it->second;
+    }
+
+    TargetClassHeader targetHeader = ToTargetClassHeader(transitional_class);
+    auto ptr = BaseScript();
+    bool result = ExecuteTargetScript(*ptr, targetHeader);
+
+    CommonFree(ptr);
+
+    if (targetHeader.Fields) {
+        CommonFree(targetHeader.Fields);
+    }
+    if (targetHeader.Methods) {
+        CommonFree(targetHeader.Methods);
+    }
+
+    classCheckCache[className] = result;
+    return result;
+}
+
+BOOL SetActionRuntimeLayer(RuntimeLayer::TargetAction action) {
+    std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
+
     if (RuntimeInstance.Action != RuntimeLayer::TargetAction::NONE) {
         RuntimeInstance.PreAction2 = RuntimeInstance.PreAction1;
         RuntimeInstance.PreAction1 = action;
@@ -26,6 +87,8 @@ BOOL SetActionRuntimeLayer(const RuntimeLayer::TargetAction action) {
 }
 
 void UpdateRuntimeLayer() {
+    std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
+
     if (RuntimeInstance.Action == RuntimeLayer::TargetAction::NONE &&
         RuntimeInstance.PreAction1 == RuntimeLayer::TargetAction::NONE &&
         RuntimeInstance.PreAction2 == RuntimeLayer::TargetAction::NONE) {
@@ -51,6 +114,10 @@ void UpdateRuntimeLayer() {
             case RuntimeLayer::TargetAction::DEALLOCATE_DATA:
                 DeallocateRuntimeLayer();
                 break;
+            case RuntimeLayer::TargetAction::REFRESH_DATA_COLLECTED:
+                DeallocateRuntimeLayer();
+                CollectDataRuntimeLayer();
+                break;
             case RuntimeLayer::TargetAction::NONE:
                 break;
         }
@@ -62,7 +129,7 @@ void UpdateRuntimeLayer() {
 }
 
 #ifdef Deallocate
-    #undef Deallocate // Для jvmti->Deallocate
+    #undef Deallocate
 #endif
 
 void InitializeRuntimeLayer() {
@@ -86,8 +153,7 @@ void CollectDataRuntimeLayer() {
         Throw("Invalid Getting Loaded Classes");
     }
 
-    RuntimeInstance.ClassesSize = class_count;
-    RuntimeInstance.Classes = static_cast<TransitionalClass*>(CommonCalloc(class_count, sizeof(TransitionalClass)));
+    TransitionalClass* newClasses = static_cast<TransitionalClass*>(CommonCalloc(class_count, sizeof(TransitionalClass)));
 
     JNIEnv* env = jvm->env;
     jclass classClass = env->FindClass("java/lang/Class");
@@ -100,10 +166,15 @@ void CollectDataRuntimeLayer() {
         TransitionalClass transitional_class = {};
 
         jstring nameStr = static_cast<jstring>(env->CallObjectMethod(klass, getNameMethod));
-        if (!nameStr) continue;
+        if (!nameStr) {
+            newClasses[i] = transitional_class;
+            env->DeleteLocalRef(klass);
+            continue;
+        }
         const char* name = env->GetStringUTFChars(nameStr, nullptr);
         transitional_class.name = CommonStrDup(name);
         env->ReleaseStringUTFChars(nameStr, name);
+        env->DeleteLocalRef(nameStr);
 
         jint field_count = 0;
         jfieldID* fields = nullptr;
@@ -141,12 +212,15 @@ void CollectDataRuntimeLayer() {
                 char* methodGeneric = nullptr;
                 err = jvm->jvmti->GetMethodName(methods[j], &methodName, &methodSig, &methodGeneric);
                 if (err == JVMTI_ERROR_NONE) {
-                    char signature[2048] = {0};
-                    strcat(signature, methodName);
-                    strcat(signature, methodSig);
+                    size_t nameLen = std::strlen(methodName);
+                    size_t sigLen = std::strlen(methodSig);
+                    char* signature = static_cast<char*>(CommonCalloc(nameLen + sigLen + 1, sizeof(char)));
+                    std::memcpy(signature, methodName, nameLen);
+                    std::memcpy(signature + nameLen, methodSig, sigLen);
+                    signature[nameLen + sigLen] = '\0';
 
                     transitional_class.Methods[j].name = CommonStrDup(methodName);
-                    transitional_class.Methods[j].signature = CommonStrDup(signature);
+                    transitional_class.Methods[j].signature = signature;
 
                     jvm->jvmti->Deallocate((unsigned char*)methodName);
                     jvm->jvmti->Deallocate((unsigned char*)methodSig);
@@ -156,38 +230,56 @@ void CollectDataRuntimeLayer() {
             jvm->jvmti->Deallocate((unsigned char*)methods);
         }
 
-        RuntimeInstance.Classes[i] = transitional_class;
+        transitional_class.Check = false;
+        newClasses[i] = transitional_class;
+
+        env->DeleteLocalRef(klass);
+    }
+
+    if (classClass) {
+        env->DeleteLocalRef(classClass);
     }
 
     if (classes) {
         jvm->jvmti->Deallocate((unsigned char*)classes);
     }
+
+    std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
+    RuntimeInstance.ClassesSize = class_count;
+    RuntimeInstance.Classes = newClasses;
 }
 
 void DeallocateRuntimeLayer() {
+    std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
 
     for (unsigned i = 0; i < RuntimeInstance.ClassesSize; i++) {
-        auto klass = RuntimeInstance.Classes[i];
-        for (unsigned j = 0; j < klass.FieldsSize; j++) {
-            auto meta = klass.Fields[j];
-            CommonFree((void*)meta.name);
-            CommonFree((void*)meta.signature);
+        TransitionalClass &klass = RuntimeInstance.Classes[i];
 
-            meta.name = nullptr;
-            meta.signature = nullptr;
+        for (unsigned j = 0; j < klass.FieldsSize; j++) {
+            auto &meta = klass.Fields[j];
+            if (meta.name) CommonFree((void*)meta.name);
+            if (meta.signature) CommonFree((void*)meta.signature);
+        }
+        if (klass.Fields) {
+            CommonFree(klass.Fields);
         }
 
         for (unsigned j = 0; j < klass.MethodsSize; j++) {
-            auto meta = klass.Methods[j];
-            CommonFree((void*)meta.name);
-            CommonFree((void*)meta.signature);
-
-            meta.name = nullptr;
-            meta.signature = nullptr;
+            auto &meta = klass.Methods[j];
+            if (meta.name) CommonFree((void*)meta.name);
+            if (meta.signature) CommonFree((void*)meta.signature);
+        }
+        if (klass.Methods) {
+            CommonFree(klass.Methods);
         }
 
-        CommonFree((void*)klass.name);
-        CommonFree(&klass);
+        if (klass.name) {
+            CommonFree((void*)klass.name);
+        }
+    }
+
+    if (RuntimeInstance.Classes) {
+        CommonFree(RuntimeInstance.Classes);
     }
 
     RuntimeInstance.ClassesSize = 0;

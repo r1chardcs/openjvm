@@ -16,7 +16,10 @@
 
 #ifndef Throw
     #define Throw(x) CommonThrow(x); return
+    #define _Throw(x) CommonThrow(x); return
 #endif
+
+#define Catch(x) if (const auto x = CommonCheckError(); x)
 
 #define _FORMAT(fmt, ...) CommonFormatImpl(fmt, ##__VA_ARGS__)
 

@@ -71,7 +71,20 @@ static bool CreateMenuForWindow(HWND hwnd) {
     io.IniFilename = nullptr;
     io.LogFilename = nullptr;
 
-    io.Fonts->AddFontFromMemoryTTF((void*)Resources::Roboto_Medium, Resources::Roboto_Medium_size);
+    static const ImWchar ranges[] =
+    {
+        0x0020, 0x00FF, // Basic Latin + Latin Supplement
+        0x0400, 0x052F, // Cyrillic + Cyrillic Supplement
+        0x2DE0, 0x2DFF, // Cyrillic Extended-A
+        0xA640, 0xA69F, // Cyrillic Extended-B
+        0,
+    };
+
+    ImFontConfig cfg;
+    cfg.GlyphRanges = ranges;
+    cfg.FontDataOwnedByAtlas = false;
+
+    io.Fonts->AddFontFromMemoryTTF((void*)Resources::Roboto_Medium, Resources::Roboto_Medium_size, 18, &cfg);
 
     ImGui::StyleColorsDark();
     ImGui_ImplWin32_Init(hwnd);

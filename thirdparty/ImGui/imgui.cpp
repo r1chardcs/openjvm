@@ -186,7 +186,7 @@ CODE
 
  - REMOTE INPUTS SHARING & MOUSE EMULATION
    - PS4/PS5 users: Consider emulating a mouse cursor with DualShock touch pad or a spare analog stick as a mouse-emulation fallback.
-   - Consoles/Tablet/Phone users: Consider using a Synergy 1.x server (on your PC) + run examples/libs/synergy/uSynergy.c (on your console/tablet/phone app)
+   - Consoles/Tablet/Phone users: Consider using a Synergy 1.x infastructor (on your PC) + run examples/libs/synergy/uSynergy.c (on your console/tablet/phone app)
      in order to share your PC mouse/keyboard.
    - See https://github.com/ocornut/imgui/wiki/Useful-Extensions#remoting for other remoting solutions.
    - On a TV/console system where readability may be lower or mouse inputs may be awkward, you may want to set the io.ConfigNavMoveSetMousePos flag.

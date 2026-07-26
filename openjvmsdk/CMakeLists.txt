@@ -11,6 +11,8 @@ add_library(openjvmsdk SHARED src/instance.cc
         include/jvm_inspector.h
         src/jvm_inspector.cc
         include/class_analyzer.h
-        src/class_analyzer.cc)
+        src/class_analyzer.cc
+        include/scripts.h
+        src/scripts.cpp)
 
 target_link_libraries(openjvmsdk PRIVATE scriptsdk MinHook ImGui)
