@@ -21,3 +21,7 @@ add_custom_command(
         COMMENT "Copying SDK DLLs to sdk directory"
         VERBATIM
 )
+
+target_link_options(launcher PRIVATE
+        -static
+)

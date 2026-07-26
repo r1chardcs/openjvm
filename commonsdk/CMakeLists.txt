@@ -7,5 +7,11 @@ add_library(commonsdk SHARED
         src/common_system.cpp
 )
 
+target_link_options(commonsdk PRIVATE
+        -static
+        -static-libgcc
+        -static-libstdc++
+)
+
 target_include_directories(commonsdk PUBLIC include)
 

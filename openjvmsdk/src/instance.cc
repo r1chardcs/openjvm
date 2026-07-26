@@ -48,7 +48,7 @@ void dllMain(void*/*handle*/) {
                 RuntimeInstance.Classes[i].name, errBuf);
         }
     }
-    while (!GetAsyncKeyState(VK_DELETE)) {
+    while (TRUE) {
         UpdateRuntimeLayer();
         CommonSleep(100/*ms*/);
     }
