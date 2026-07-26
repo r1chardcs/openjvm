@@ -1,6 +1,33 @@
 #include <jni_helper.h>
 #include <common_memory.h>
 #include <common_exception.h>
+#include <common_system.h>
+
+jint JNI_GetCreatedJavaVMs(JavaVM** vmBuf, jsize bufLen, jsize* numVMs) {
+    typedef jint (JNICALL *PFN_JNI_GetCreatedJavaVMs)(JavaVM**, jsize, jsize*);
+
+    static PFN_JNI_GetCreatedJavaVMs pFunc = nullptr;
+
+    if (!pFunc) {
+        HMODULE hJvm = GetModuleHandleA("jvm.dll");
+        if (!hJvm) {
+            hJvm = LoadLibraryA("jvm.dll");
+        }
+
+        if (!hJvm) {
+            return JNI_ERR;
+        }
+
+        pFunc = reinterpret_cast<PFN_JNI_GetCreatedJavaVMs>(
+            GetProcAddress(hJvm, "JNI_GetCreatedJavaVMs"));
+
+        if (!pFunc) {
+            return JNI_ERR;
+        }
+    }
+
+    return pFunc(vmBuf, bufLen, numVMs);
+}
 
 PJVM InternalCreateJvmJNI() {
     JavaVM* vms[1] = { nullptr };

@@ -1,10 +1,16 @@
 #define UseConsole
+#include "common_exception.h"
 #include "windows_helper.h"
+#include "overlay.h"
 
-void dllMain() {
-    while (!GetAsyncKeyState(VK_DELETE)) {
-
+void dllMain(void*) {
+    InitializeOverlay();
+    if (auto errBuf = CommonCheckError(); errBuf) {
+        std::cout << errBuf << '\n';
     }
+
+    while (!GetAsyncKeyState(VK_DELETE)) {}
+    DestroyOverlay();
 }
 
-SetDllMain(dllMain)
+CREATE_DLL_ENTRY(dllMain)

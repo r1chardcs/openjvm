@@ -170,7 +170,7 @@ typedef void* PVoid;
 #define TYPEDEF_BOOL
 #ifndef __OBJC_BOOL
 #define __OBJC_BOOL
-typedef U1 BOOL;
+typedef I4 BOOL;
 #endif
 #endif
 

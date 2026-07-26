@@ -1955,6 +1955,7 @@ extern "C" {
 
 #ifdef __cplusplus
 } /* extern "C" */
+
 #endif /* __cplusplus */
 
 #endif /* !_JAVASOFT_JNI_H_ */

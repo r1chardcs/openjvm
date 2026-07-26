@@ -5,7 +5,36 @@
 
 CPI1 Out_Throw_Buf = nullptr;
 
+PI1 CommonFormatImpl(const char *Fmt, ...) {
+    va_list args;
+    va_start(args, Fmt);
+
+    va_list argsCopy;
+    va_copy(argsCopy, args);
+    const int size = vsnprintf(nullptr, 0, Fmt, argsCopy);
+    va_end(argsCopy);
+
+    if (size < 0) {
+        va_end(args);
+        CommonThrow("vsnprintf size calculation failed.");
+        return nullptr;
+    }
+
+    const auto buffer = static_cast<char*>(CommonMalloc(size + 1));
+    if (!buffer) {
+        va_end(args);
+        CommonThrow("Failed to allocate format buffer.");
+        return nullptr;
+    }
+
+    vsnprintf(buffer, size + 1, Fmt, args);
+    va_end(args);
+
+    return buffer;
+}
+
 void CommonThrow(const char *Msg) {
+    printf("Throw %s\n", Msg);
     if (Out_Throw_Buf) {
         CommonIfErrorAbort();
         return;
