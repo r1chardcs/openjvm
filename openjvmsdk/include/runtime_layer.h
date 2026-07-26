@@ -22,6 +22,8 @@ typedef struct {
     COMMON_LIST(TransitionalMethod, Methods);
 }TransitionalClass;
 
+void GlobalErrorCallback(const char* Msg);
+
 typedef struct {
     enum class TargetAction {
         INITIALIZE, // Инициализация JVM (JNI)

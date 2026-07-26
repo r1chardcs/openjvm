@@ -8,14 +8,15 @@
 #include <jvm_inspector.h>
 
 void dllMain(void*) {
+    Out_Throw_Callback = GlobalErrorCallback;
     InitializeOverlay();
 
-    if (auto errBuf = CommonCheckError(); errBuf) {
+    if (const auto errBuf = CommonCheckError(); errBuf) {
         std::cout << errBuf << '\n';
     }
 
     InitializeRuntimeLayer();
-    if (auto errBuf = CommonCheckError(); errBuf) {
+    if (const auto errBuf = CommonCheckError(); errBuf) {
         std::cout << errBuf << '\n';
     }
 

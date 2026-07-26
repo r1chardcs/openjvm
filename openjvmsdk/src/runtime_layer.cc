@@ -6,6 +6,12 @@
 #include "common_exception.h"
 #include "common_memory.h"
 
+void GlobalErrorCallback(const char *Msg) {
+    printf("FATAL ERROR\n");
+    printf("%s\n", Msg);
+    while (1) {}
+}
+
 RuntimeLayer RuntimeInstance;
 
 BOOL SetActionRuntimeLayer(const RuntimeLayer::TargetAction action) {
