@@ -34,19 +34,12 @@ PJVM InternalCreateJvmJNI() {
     jsize vmCount = 0;
 
     const jint findResult = JNI_GetCreatedJavaVMs(vms, 1, &vmCount);
-    if (findResult != JNI_OK) {
+    if (findResult != JNI_OK || vmCount == 0 || vms[0] == nullptr) {
         CommonThrow("JNI_GetCreatedJavaVMs failed.");
         return nullptr;
     }
 
-    if (vmCount == 0 || vms[0] == nullptr) {
-        CommonThrow("No created JavaVM found.");
-        return nullptr;
-    }
-
-    const auto jvm =
-        static_cast<PJVM>(CommonCalloc(1, sizeof(JVM)));
-
+    const auto jvm = static_cast<PJVM>(CommonCalloc(1, sizeof(JVM)));
     if (!jvm) {
         CommonThrow("Failed to allocate JVM struct.");
         return nullptr;
@@ -55,8 +48,8 @@ PJVM InternalCreateJvmJNI() {
     jvm->vm = vms[0];
 
     void* envPtr = nullptr;
-    const jint envResult = jvm->vm->GetEnv(&envPtr, JNI_VERSION_1_6);
-    if (envResult != JNI_OK || envPtr == nullptr) {
+    const jint envResult = jvm->vm->AttachCurrentThread(&envPtr, nullptr);
+    if (envPtr == nullptr) {
         CommonThrow("Failed to get JNIEnv.");
         CommonFree(jvm);
         return nullptr;
@@ -65,7 +58,7 @@ PJVM InternalCreateJvmJNI() {
 
     void* jvmtiPtr = nullptr;
     const jint jvmtiResult = jvm->vm->GetEnv(&jvmtiPtr, JVMTI_VERSION_1_2);
-    if (jvmtiResult != JNI_OK || jvmtiPtr == nullptr) {
+    if (jvmtiPtr == nullptr) {
         CommonThrow("Failed to get Jvmti.");
         CommonFree(jvm);
         return nullptr;

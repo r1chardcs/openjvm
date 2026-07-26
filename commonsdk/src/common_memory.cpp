@@ -51,10 +51,5 @@ BOOL CommonFree(PVoid Pointer) {
 
 CPI1 CommonStrDup(const CPI1 Str) {
     if (!Str) return nullptr;
-
-    const size_t len = CommonCalcString(Str);
-    const auto copy = static_cast<char*>(CommonMalloc(len + 1));
-
-    CommonMemCopy(copy, Str, len + 1);
-    return copy;
+    return _strdup(Str);
 }

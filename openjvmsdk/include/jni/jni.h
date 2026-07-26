@@ -43,7 +43,7 @@
 	  and jlong */
 
 #include "jni_md.h"
-
+#undef Throw
 #ifdef __cplusplus
 extern "C" {
 #endif
