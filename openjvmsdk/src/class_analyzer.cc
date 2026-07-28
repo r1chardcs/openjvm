@@ -24,5 +24,6 @@ BOOL IsGenerateClass(TransitionalClass *transitional_class) {
     if (!transitional_class) return false;
     const std::string className = transitional_class->Name;
 
-    return className.find("$") != std::string::npos;
+    return (className.find("$") != std::string::npos)
+                    || (className.find("0x") != std::string::npos);
 }

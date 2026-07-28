@@ -19,6 +19,7 @@
     #define _Throw(x) CommonThrow(x); return
 #endif
 
+#define _Abort CommonIfErrorAbort();
 #define Catch(x) if (const auto x = CommonCheckError(); x)
 
 #define _FORMAT(fmt, ...) CommonFormatImpl(fmt, ##__VA_ARGS__)

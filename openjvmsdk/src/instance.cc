@@ -1,4 +1,7 @@
+#ifdef _DEBUG
 #define UseConsole
+#endif
+
 #include "common_exception.h"
 #include "windows_helper.h"
 #include "runtime_layer.h"
@@ -9,30 +12,29 @@
 #include "class_analyzer.h"
 #include "common_memory.h"
 #include "scripts.h"
-#include "../../scriptsdk/thirdparty/py/pocketpy.h"
 
 PTargetScript Out_Update_Script = nullptr;
 
 void dllMain(void*/*handle*/) {
-    py_initialize();
+    InitializeScriptSDK();
     Out_Throw_Callback = GlobalErrorCallback;
 
     InitializeOverlay();
     Catch(errBuf) {
-        printf("unhandled exception when 'Initialize Overlay'\n");
-        _Throw (errBuf);
+        OnUnhandledError("Unhandled exception when 'Initialize Overlay'\n");
+        _Throw (errBuf); _Abort;
     }
 
     InitializeRuntimeLayer();
     Catch(errBuf) {
-        printf("unhandled exception when 'Initialize Runtime Layer'\n");
-        _Throw (errBuf);
+        OnUnhandledError("Unhandled exception when 'Initialize Runtime Layer'\n");
+        _Throw (errBuf); _Abort;
     }
 
     CollectDataRuntimeLayer();
     Catch(errBuf) {
-        printf("unhandled exception when 'Collect Data'\n");
-        _Throw (errBuf);
+        OnUnhandledError("Unhandled exception when 'Collect Data'\n");
+        _Throw (errBuf); _Abort;
     }
 
     AddRenderable(GetRenderableJvmInspector());
@@ -55,8 +57,8 @@ void dllMain(void*/*handle*/) {
             RuntimeInstance.Classes[i].Owner = MALWARE_DETECT_OWNER;
 
         if (const auto errBuf = CommonCheckError(); errBuf) {
-            printf("unhandled exception when checking the class %s, %s",
-                RuntimeInstance.Classes[i].Name, errBuf);
+            OnUnhandledError(_FORMAT("unhandled exception when checking the class %s, %s",
+                RuntimeInstance.Classes[i].Name, errBuf));
         }
     }
     while (TRUE) {
@@ -76,8 +78,8 @@ void dllMain(void*/*handle*/) {
                 if (IsPrimitive(&RuntimeInstance.Classes[i])) continue;
                 if (IsJavaClass(&RuntimeInstance.Classes[i])) continue;
 
-                auto checkResult = CheckClassTarget(RuntimeInstance.Classes[i], Out_Update_Script, false);;
-                RuntimeInstance.Classes[i].Check = checkResult.Result;
+                const auto checkResult = CheckClassTarget(RuntimeInstance.Classes[i], Out_Update_Script, false);;
+                RuntimeInstance.Classes[i].Check = Result;
                 if (RuntimeInstance.Classes[i].Check) {
                     if (RuntimeInstance.Classes->Owner)
                         CommonFree(const_cast<PV>(
@@ -89,8 +91,8 @@ void dllMain(void*/*handle*/) {
                     else RuntimeInstance.Classes[i].Owner = StrDup(checkResult.Verbose);
                 }
                 if (const auto errBuf = CommonCheckError(); errBuf) {
-                    printf("unhandled exception when checking the class %s, %s",
-                        RuntimeInstance.Classes[i].Name, errBuf);
+                    OnUnhandledError(_FORMAT("Unhandled exception when checking the class %s, %s",
+                        RuntimeInstance.Classes[i].Name, errBuf));
                 }
             }
             DestroyTargetScript(Out_Update_Script);

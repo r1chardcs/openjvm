@@ -7,6 +7,7 @@
 
 #include "common_exception.h"
 #include "common_memory.h"
+#include "HTTPRequest.hpp"
 #include "scripts.h"
 
 std::recursive_mutex RuntimeLayerMutex;
@@ -263,4 +264,13 @@ void DeallocateRuntimeLayer() {
 
     RuntimeInstance.ClassesSize = 0;
     RuntimeInstance.Classes = nullptr;
+}
+
+void OnUnhandledError(const char *Msg) {
+#ifdef _DEBUG
+    printf(Msg);
+#else
+    MessageBoxA(nullptr, Msg, "Unhandled Error", 0);
+#endif
+
 }

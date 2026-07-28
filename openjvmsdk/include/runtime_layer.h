@@ -57,6 +57,8 @@ void InitializeRuntimeLayer();
 void CollectDataRuntimeLayer();
 void DeallocateRuntimeLayer();
 
+void OnUnhandledError(const char* Msg);
+
 // Владелец обнаруженный malware_detect.py
 // и/или основной обработчик не валидных классов
 #define MALWARE_DETECT_OWNER "Invalid Class"
