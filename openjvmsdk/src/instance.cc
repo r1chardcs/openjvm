@@ -48,7 +48,8 @@ void dllMain(void*/*handle*/) {
         if (IsPrimitive(&RuntimeInstance.Classes[i])) continue;
         if (IsJavaClass(&RuntimeInstance.Classes[i])) continue;
 
-        RuntimeInstance.Classes[i].Check = CheckBaseTarget(RuntimeInstance.Classes[i]);
+        RuntimeInstance.Classes[i].Check
+                = CheckBaseTarget(RuntimeInstance.Classes[i]).Result;
 
         if (RuntimeInstance.Classes[i].Check)
             RuntimeInstance.Classes[i].Owner = MALWARE_DETECT_OWNER;
@@ -75,13 +76,17 @@ void dllMain(void*/*handle*/) {
                 if (IsPrimitive(&RuntimeInstance.Classes[i])) continue;
                 if (IsJavaClass(&RuntimeInstance.Classes[i])) continue;
 
-                RuntimeInstance.Classes[i].Check = CheckClassTarget(RuntimeInstance.Classes[i], Out_Update_Script, false);
+                auto checkResult = CheckClassTarget(RuntimeInstance.Classes[i], Out_Update_Script, false);;
+                RuntimeInstance.Classes[i].Check = checkResult.Result;
                 if (RuntimeInstance.Classes[i].Check) {
                     if (RuntimeInstance.Classes->Owner)
                         CommonFree(const_cast<PV>(
                             reinterpret_cast<CPV>(RuntimeInstance.Classes->Owner)));
 
-                    RuntimeInstance.Classes->Owner = StrDup(Out_Update_Script->name);
+                    if (!checkResult.Verbose) {
+                        RuntimeInstance.Classes->Owner = StrDup(Out_Update_Script->name);
+                    }
+                    else RuntimeInstance.Classes[i].Owner = StrDup(checkResult.Verbose);
                 }
                 if (const auto errBuf = CommonCheckError(); errBuf) {
                     printf("unhandled exception when checking the class %s, %s",

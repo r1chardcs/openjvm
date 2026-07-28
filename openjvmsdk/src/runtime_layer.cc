@@ -42,15 +42,15 @@ TargetClassHeader ToTargetClassHeader(const TransitionalClass &klass) {
     return header;
 }
 
-BOOL CheckClassTarget(const TransitionalClass &transitional_class, PTargetScript script, bool free_memory) {
-    if (!transitional_class.Name || !script) return false;
+TargetExecuteResult CheckClassTarget(const TransitionalClass &transitional_class, PTargetScript script, bool free_memory) {
+    if (!transitional_class.Name || !script) return {false, nullptr};
 
     std::string cacheKey = std::string(transitional_class.Name) + "|" + std::to_string(script->ring) + "|" + script->name;
 
     std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
 
     TargetClassHeader targetHeader = ToTargetClassHeader(transitional_class);
-    bool result = ExecuteTargetScript(*script, targetHeader);
+    const auto result = ExecuteTargetScript(*script, targetHeader);
 
     if (free_memory) {
         DestroyTargetScript(script);
@@ -65,7 +65,7 @@ BOOL CheckClassTarget(const TransitionalClass &transitional_class, PTargetScript
     return result;
 }
 
-BOOL CheckBaseTarget(const TransitionalClass &transitional_class) {
+TargetExecuteResult CheckBaseTarget(const TransitionalClass &transitional_class) {
     return CheckClassTarget(transitional_class, BaseScript(), true);
 }
 

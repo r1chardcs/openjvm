@@ -6,7 +6,19 @@
 
 int main() {
 
-    const auto script = ToTargetScript(GetScriptByID(1, "http://localhost:8000"));
+    InitializeScriptSDK();
+    const auto script = CreateTargetScript(0, "Test", R"(
+Out_Verbose = "[no log]"
+
+def check(header):
+    global Out_Verbose
+
+    if header["name"] == "my.cheat.class":
+        Out_Verbose = "Detect my.cheat.class"
+        return True
+
+    return False
+)", CHECKING_TYPE_HEADER);
 
     std::cout << script->name << '\n';
     std::cout << script->ring << '\n';
@@ -19,7 +31,10 @@ int main() {
     header.MethodsSize = 0;
     header.Methods = nullptr;
     header.Fields = nullptr;
-    std::cout << ExecuteTargetScript(*script, header) << '\n';
+    auto obj = ExecuteTargetScript(*script, header);
+    std::cout << obj.Verbose  << '\n';
+    std::cout << (obj.Result? "True" : "False") << '\n';
     std::cout << CommonCheckError() << '\n';
 
+    ShutdownScriptSDK();
 }

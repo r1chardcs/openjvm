@@ -10,4 +10,5 @@ PTargetScript BaseScript();
 Renderable GetRenderableScriptMenu();
 void RenderScriptMenu(RenderContext context);
 const char* CheckAvailableAddress(const char* source);
+
 #endif

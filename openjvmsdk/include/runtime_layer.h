@@ -27,8 +27,8 @@ typedef struct {
 
 void GlobalErrorCallback(const char* Msg);
 TargetClassHeader ToTargetClassHeader(const TransitionalClass &klass);
-BOOL CheckBaseTarget(const TransitionalClass &transitional_class);
-BOOL CheckClassTarget(const TransitionalClass &transitional_class, PTargetScript script, bool free_memory);
+TargetExecuteResult CheckBaseTarget(const TransitionalClass &transitional_class);
+TargetExecuteResult CheckClassTarget(const TransitionalClass &transitional_class, PTargetScript script, bool free_memory);
 
 typedef struct {
     enum class TargetAction {

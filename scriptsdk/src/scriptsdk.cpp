@@ -30,21 +30,21 @@ PTargetScript CreateTargetScript(I64 Ring, CPI1 Name, CPI1 Source, CheckingType 
     return script;
 }
 
-BOOL ExecuteTargetScript(TargetScript Script, TargetClassHeader Header) {
+TargetExecuteResult ExecuteTargetScript(TargetScript Script, TargetClassHeader Header) {
     py_exec(Script.source, "<script_string>", EXEC_MODE, nullptr);
 
     const auto func_name = py_name("check");
     if (!func_name) {
         CommonThrow("Invalid-Code: Not found name 'check'.");
         py_finalize();
-        return false;
+        return {false, nullptr};
     }
 
     const auto func_ref = py_getglobal(func_name);
     if (!func_ref) {
         CommonThrow("Invalid-Code: Not found Reference 'check'.");
         py_finalize();
-        return false;
+        return {false, nullptr};
     }
 
     py_push(static_cast<py_Ref>(func_ref));
@@ -91,7 +91,13 @@ BOOL ExecuteTargetScript(TargetScript Script, TargetClassHeader Header) {
 
     BOOL result = py_tobool(py_retval());
 
-    return result;
+    CPI1 verbose = nullptr;
+    py_ItemRef verbose_ref = py_getglobal(py_name("Out_Verbose"));
+    if (verbose_ref && py_isstr(verbose_ref)) {
+        verbose = py_tostr(verbose_ref);
+    }
+
+    return {result, verbose};
 }
 
 PTargetServerScript GetScriptByID(I64 id, CPI1 address) {
@@ -137,4 +143,12 @@ PTargetScript ToTargetScript(PTargetServerScript Script) {
     CommonFree((void*)Script->Source);
     CommonFree(Script);
     return out;
+}
+
+void InitializeScriptSDK() {
+    py_initialize();
+}
+
+void ShutdownScriptSDK() {
+    py_finalize();
 }

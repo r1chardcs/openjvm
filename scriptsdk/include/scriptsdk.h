@@ -46,13 +46,21 @@ extern "C"
         I64 Ring;
     }TargetServerScript, *PTargetServerScript;
 
+    typedef struct {
+        BOOL Result;
+        CPI1 Verbose;
+    }TargetExecuteResult;
+
     IMPORT_AND_EXPORT PTargetScript CreateTargetScript(I64 Ring, CPI1 Name, CPI1 Source, CheckingType Type);
     IMPORT_AND_EXPORT void DestroyTargetScript(PTargetScript Script);
-    IMPORT_AND_EXPORT BOOL ExecuteTargetScript(TargetScript Script, TargetClassHeader Header);
+    IMPORT_AND_EXPORT TargetExecuteResult ExecuteTargetScript(TargetScript Script, TargetClassHeader Header);
 
     IMPORT_AND_EXPORT PTargetServerScript GetScriptByID(I64 ID,
                                                        CPI1 Address);
 
     IMPORT_AND_EXPORT PTargetScript ToTargetScript(PTargetServerScript Script);
+
+    IMPORT_AND_EXPORT void InitializeScriptSDK();
+    IMPORT_AND_EXPORT void ShutdownScriptSDK();
 }
 #endif
