@@ -2,22 +2,62 @@
 
 #include <string>
 #include <vector>
-#include <unordered_map>
-
-#include "runtime_layer.h"
-#include "scripts.h"
-
-#include "class_analyzer.h"
-
 #include <ImGui/imgui.h>
 
-#include "common_memory.h"
+#include <runtime_layer.h>
+#include <scripts.h>
+#include <class_analyzer.h>
 
+#include "common_exception.h"
 
 Renderable GetRenderableJvmInspector() {
     Renderable r;
     r.callback = RenderJvmInspector;
     return r;
+}
+
+Renderable GetRenderableUnhookMenu() {
+    Renderable r;
+    r.callback = RenderUnhookMenu;
+    return r;
+}
+
+void RenderUnhookMenu(RenderContext context) {
+    constexpr float buttonWidth = 90.0f;
+    constexpr float buttonHeight = 40.0f;
+    constexpr float margin = 20.0f;
+
+    const ImGuiIO& io = ImGui::GetIO();
+    ImVec2 windowPos(io.DisplaySize.x - margin, io.DisplaySize.y - margin);
+    ImGui::SetNextWindowPos(windowPos, ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+    ImGui::SetNextWindowSize(ImVec2(buttonWidth, buttonHeight));
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
+
+    ImGui::Begin("##UnhookMenu", nullptr,
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoSavedSettings);
+
+    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.85f, 0.1f, 0.1f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.95f, 0.2f, 0.2f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.7f, 0.05f, 0.05f, 1.0f));
+
+    if (ImGui::Button("HIDE", ImVec2(buttonWidth, buttonHeight))) {
+        Out_Render_State = false;
+    }
+
+    ImGui::PopStyleColor(3);
+
+    ImGui::End();
+
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar(2);
 }
 
 std::string SanitizeClassName(const char* name) {
@@ -76,6 +116,7 @@ void RenderJvmInspector(RenderContext context) {
 
     static bool showGenerated = false;
     static bool showPrimitive = false;
+    static bool showDetect = false;
     static char packageFilter[256] = "";
     static char blacklist[1024] = "";
     static char whitelist[1024] = "";
@@ -88,6 +129,53 @@ void RenderJvmInspector(RenderContext context) {
 
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
+            if (ImGui::MenuItem("Save To")) {
+                ImGui::OpenPopup("SaveToPopup");
+            }
+
+            if (ImGui::BeginPopupModal("SaveToPopup", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+                static char path[256] = "classes_dump.txt";
+                ImGui::InputText("Filename", path, sizeof(path));
+
+                if (ImGui::Button("Save", ImVec2(120, 0))) {
+                    if (strlen(path) > 0) {
+                        if (FILE* file = fopen(path, "w")) {
+                            const auto runtime_classes = RuntimeInstance.Classes;
+                            const auto runtime_class_count = RuntimeInstance.ClassesSize;
+
+                            for (U64 i = 0; i < runtime_class_count; i++) {
+                                auto& cls = runtime_classes[i];
+                                if (!cls.Name) continue;
+
+                                fprintf(file, "Class Name: %s\n", cls.Name);
+                                fprintf(file, "- Fields:\n");
+                                for (U64 j = 0; j < cls.FieldsSize; j++) {
+                                    auto& field = cls.Fields[j];
+                                    if (field.name && field.signature) {
+                                        fprintf(file, "    %s : %s\n", field.name, field.signature);
+                                    }
+                                }
+                                fprintf(file, "- Methods:\n");
+                                for (U64 j = 0; j < cls.MethodsSize; j++) {
+                                    auto& method = cls.Methods[j];
+                                    if (method.name && method.signature) {
+                                        fprintf(file, "    %s\n", method.signature);
+                                    }
+                                }
+                                fprintf(file, "\n");
+                            }
+
+                            fclose(file);
+                            ImGui::CloseCurrentPopup();
+                        }
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
             if (ImGui::MenuItem("Refresh")) {
                 SetActionRuntimeLayer(RuntimeLayer::TargetAction::REFRESH_DATA_COLLECTED);
             }
@@ -96,6 +184,7 @@ void RenderJvmInspector(RenderContext context) {
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem("Show Generated Classes", nullptr, &showGenerated);
             ImGui::MenuItem("Show Primitive Classes", nullptr, &showPrimitive);
+            ImGui::MenuItem("Show Only Detect", nullptr, &showDetect);
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
@@ -132,15 +221,18 @@ void RenderJvmInspector(RenderContext context) {
     if (ImGui::BeginChild("ClassTree", ImVec2(0, 0), true)) {
         for (U64 i = 0; i < classCount; i++) {
             auto& cls = classes[i];
-            if (!cls.name) continue;
+            if (!cls.Name) continue;
 
-            std::string className = SanitizeClassName(cls.name);
+            std::string className = SanitizeClassName(cls.Name);
 
             const bool isGenerated = IsGenerateClass(&cls);
             const bool isPrimitive = IsPrimitive(&cls);
 
             if (!showGenerated && isGenerated) continue;
             if (!showPrimitive && isPrimitive) continue;
+            if (showDetect) {
+                if (!cls.Check) continue;
+            }
 
             std::string package;
             size_t lastDot = className.rfind('.');
@@ -168,7 +260,9 @@ void RenderJvmInspector(RenderContext context) {
                 ImGui::PushStyleColor(ImGuiCol_Text, IM_COL32(255, 80, 80, 255));
             }
 
-            bool isOpen = ImGui::TreeNode(className.c_str());
+            bool isOpen = false;
+            if (cls.Check && cls.Owner) { isOpen = ImGui::TreeNode(_FORMAT("%s (%s)", className.c_str(), cls.Owner)); }
+            else isOpen = ImGui::TreeNode(className.c_str());
 
             if (isChecked) {
                 ImGui::PopStyleColor();

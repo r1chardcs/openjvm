@@ -5,6 +5,9 @@
 #include "common_memory.h"
 #include "py/pocketpy.h"
 
+#include "nlohmann/json.hpp"
+#include "HTTPRequest/HTTPRequest.hpp"
+
 void DestroyTargetScript(PTargetScript Script) {
     if (!Script)
         return;
@@ -89,4 +92,49 @@ BOOL ExecuteTargetScript(TargetScript Script, TargetClassHeader Header) {
     BOOL result = py_tobool(py_retval());
 
     return result;
+}
+
+PTargetServerScript GetScriptByID(I64 id, CPI1 address) {
+    try {
+        char url[512];
+        sprintf(url, "%s/api/script/get/%lld", address, id);
+
+        http::Request request(url);
+        const auto result = request.send("GET", "", {}, std::chrono::milliseconds{500});
+
+        if (result.status.code == 404) {
+            return nullptr;
+        }
+
+        if (result.status.code != 200) {
+            return nullptr;
+        }
+
+        auto body = result.body;
+        std::string jsonStr(body.begin(), body.end());
+
+        auto json = nlohmann::json::parse(jsonStr);
+
+        auto script = static_cast<PTargetServerScript>(CommonMalloc(sizeof(TargetServerScript)));
+        if (!script) {
+            return nullptr;
+        }
+
+        script->Name = CommonStrDup(json["name"].get<std::string>().c_str());
+        script->Source = CommonStrDup(json["code"].get<std::string>().c_str());
+        script->Ring = json["ring"].get<I64>();
+
+        return script;
+    }
+    catch (...) {
+        return nullptr;
+    }
+}
+
+PTargetScript ToTargetScript(PTargetServerScript Script) {
+    auto out = CreateTargetScript(Script->Ring, Script->Name, Script->Source, CHECKING_TYPE_HEADER);
+    CommonFree((void*)Script->Name);
+    CommonFree((void*)Script->Source);
+    CommonFree(Script);
+    return out;
 }

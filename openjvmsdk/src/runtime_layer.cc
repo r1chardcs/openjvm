@@ -9,8 +9,6 @@
 #include "common_memory.h"
 #include "scripts.h"
 
-static std::unordered_map<std::string, bool> classCheckCache;
-
 std::recursive_mutex RuntimeLayerMutex;
 
 void GlobalErrorCallback(const char *Msg) {
@@ -24,7 +22,7 @@ RuntimeLayer RuntimeInstance;
 TargetClassHeader ToTargetClassHeader(const TransitionalClass &klass) {
     TargetClassHeader header = {};
 
-    header.Name = klass.name;
+    header.Name = klass.Name;
     header.Size = 0;
 
     header.FieldsSize = klass.FieldsSize;
@@ -44,24 +42,19 @@ TargetClassHeader ToTargetClassHeader(const TransitionalClass &klass) {
     return header;
 }
 
-BOOL CheckBaseTarget(const TransitionalClass &transitional_class) {
-    if (!transitional_class.name) return false;
+BOOL CheckClassTarget(const TransitionalClass &transitional_class, PTargetScript script, bool free_memory) {
+    if (!transitional_class.Name || !script) return false;
 
-    std::string className(transitional_class.name);
+    std::string cacheKey = std::string(transitional_class.Name) + "|" + std::to_string(script->ring) + "|" + script->name;
 
     std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
 
-    auto it = classCheckCache.find(className);
-    if (it != classCheckCache.end()) {
-        return it->second;
-    }
-
     TargetClassHeader targetHeader = ToTargetClassHeader(transitional_class);
-    auto ptr = BaseScript();
-    bool result = ExecuteTargetScript(*ptr, targetHeader);
+    bool result = ExecuteTargetScript(*script, targetHeader);
 
-    CommonFree(ptr);
-
+    if (free_memory) {
+        DestroyTargetScript(script);
+    }
     if (targetHeader.Fields) {
         CommonFree(targetHeader.Fields);
     }
@@ -69,17 +62,18 @@ BOOL CheckBaseTarget(const TransitionalClass &transitional_class) {
         CommonFree(targetHeader.Methods);
     }
 
-    classCheckCache[className] = result;
     return result;
+}
+
+BOOL CheckBaseTarget(const TransitionalClass &transitional_class) {
+    return CheckClassTarget(transitional_class, BaseScript(), true);
 }
 
 BOOL SetActionRuntimeLayer(RuntimeLayer::TargetAction action) {
     std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
 
     if (RuntimeInstance.Action != RuntimeLayer::TargetAction::NONE) {
-        RuntimeInstance.PreAction2 = RuntimeInstance.PreAction1;
-        RuntimeInstance.PreAction1 = action;
-        return true;
+        return false;
     }
 
     RuntimeInstance.Action = action;
@@ -89,43 +83,27 @@ BOOL SetActionRuntimeLayer(RuntimeLayer::TargetAction action) {
 void UpdateRuntimeLayer() {
     std::lock_guard<std::recursive_mutex> lock(RuntimeLayerMutex);
 
-    if (RuntimeInstance.Action == RuntimeLayer::TargetAction::NONE &&
-        RuntimeInstance.PreAction1 == RuntimeLayer::TargetAction::NONE &&
-        RuntimeInstance.PreAction2 == RuntimeLayer::TargetAction::NONE) {
-        return;
-        }
+    if (RuntimeInstance.Action == RuntimeLayer::TargetAction::NONE) { return; }
 
-    RuntimeLayer::TargetAction actions[3] = {
-        RuntimeInstance.Action,
-        RuntimeInstance.PreAction1,
-        RuntimeInstance.PreAction2
-    };
-
-    for (int i = 0; i < 3; i++) {
-        if (actions[i] == RuntimeLayer::TargetAction::NONE) continue;
-
-        switch (actions[i]) {
-            case RuntimeLayer::TargetAction::INITIALIZE:
-                InitializeRuntimeLayer();
-                break;
-            case RuntimeLayer::TargetAction::DATA_COLLECTED:
-                CollectDataRuntimeLayer();
-                break;
-            case RuntimeLayer::TargetAction::DEALLOCATE_DATA:
-                DeallocateRuntimeLayer();
-                break;
-            case RuntimeLayer::TargetAction::REFRESH_DATA_COLLECTED:
-                DeallocateRuntimeLayer();
-                CollectDataRuntimeLayer();
-                break;
-            case RuntimeLayer::TargetAction::NONE:
-                break;
-        }
+    switch (RuntimeInstance.Action) {
+        case RuntimeLayer::TargetAction::INITIALIZE:
+            InitializeRuntimeLayer();
+            break;
+        case RuntimeLayer::TargetAction::DATA_COLLECTED:
+            CollectDataRuntimeLayer();
+            break;
+        case RuntimeLayer::TargetAction::DEALLOCATE_DATA:
+            DeallocateRuntimeLayer();
+            break;
+        case RuntimeLayer::TargetAction::REFRESH_DATA_COLLECTED:
+            DeallocateRuntimeLayer();
+            CollectDataRuntimeLayer();
+            break;
+        case RuntimeLayer::TargetAction::NONE:
+            break;
     }
 
     RuntimeInstance.Action = RuntimeLayer::TargetAction::NONE;
-    RuntimeInstance.PreAction1 = RuntimeLayer::TargetAction::NONE;
-    RuntimeInstance.PreAction2 = RuntimeLayer::TargetAction::NONE;
 }
 
 #ifdef Deallocate
@@ -172,7 +150,7 @@ void CollectDataRuntimeLayer() {
             continue;
         }
         const char* name = env->GetStringUTFChars(nameStr, nullptr);
-        transitional_class.name = CommonStrDup(name);
+        transitional_class.Name = CommonStrDup(name);
         env->ReleaseStringUTFChars(nameStr, name);
         env->DeleteLocalRef(nameStr);
 
@@ -231,6 +209,7 @@ void CollectDataRuntimeLayer() {
         }
 
         transitional_class.Check = false;
+        transitional_class.Owner = nullptr;
         newClasses[i] = transitional_class;
 
         env->DeleteLocalRef(klass);
@@ -273,8 +252,8 @@ void DeallocateRuntimeLayer() {
             CommonFree(klass.Methods);
         }
 
-        if (klass.name) {
-            CommonFree((void*)klass.name);
+        if (klass.Name) {
+            CommonFree((void*)klass.Name);
         }
     }
 

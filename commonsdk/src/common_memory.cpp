@@ -37,6 +37,17 @@ PV CommonMemCopy(const PV Dst, const CPV Src, const U64 Size) {
     return memcpy(Dst, Src, Size);
 }
 
+PV CommonRealloc(PV Dst, U64 Size) {
+    while (true) {
+        if (const auto pointer = realloc(Dst, Size); pointer) {
+            return pointer;
+        }
+
+        CommonSleep(ToSecond(1));
+        CommonErrorAllocateMemory(Size);
+    }
+}
+
 U64 CommonCalcString(CPI1 String) {
     return strlen(String);
 }

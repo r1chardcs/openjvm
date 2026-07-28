@@ -4,7 +4,7 @@
 
 BOOL IsPrimitive(TransitionalClass *transitional_class) {
     if (!transitional_class) return false;
-    const std::string className = transitional_class->name;
+    const std::string className = transitional_class->Name;
 
     return className.find("[") != std::string::npos ||
                              className == "int" || className == "long" ||
@@ -16,13 +16,13 @@ BOOL IsPrimitive(TransitionalClass *transitional_class) {
 
 BOOL IsJavaClass(TransitionalClass *transitional_class) {
     if (!transitional_class) return false;
-    const std::string className = transitional_class->name;
+    const std::string className = transitional_class->Name;
     return className.find("java/lang") != std::string::npos;
 }
 
 BOOL IsGenerateClass(TransitionalClass *transitional_class) {
     if (!transitional_class) return false;
-    const std::string className = transitional_class->name;
+    const std::string className = transitional_class->Name;
 
     return className.find("$") != std::string::npos;
 }

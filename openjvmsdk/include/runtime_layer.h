@@ -2,10 +2,9 @@
 #define RUNTIME_LAYER
 
 #include <common_typedef.h>
-#undef Throw
+#undef Throw // для jniEnv->Throw()
 
 #include <jni_helper.h>
-
 #include "scriptsdk.h"
 
 typedef struct {
@@ -20,7 +19,8 @@ typedef struct {
 
 typedef struct {
     BOOL Check;
-    CPI1 name;
+    CPI1 Owner; // Verbose
+    CPI1 Name;
     COMMON_LIST(TransitionalField, Fields);
     COMMON_LIST(TransitionalMethod, Methods);
 }TransitionalClass;
@@ -28,6 +28,7 @@ typedef struct {
 void GlobalErrorCallback(const char* Msg);
 TargetClassHeader ToTargetClassHeader(const TransitionalClass &klass);
 BOOL CheckBaseTarget(const TransitionalClass &transitional_class);
+BOOL CheckClassTarget(const TransitionalClass &transitional_class, PTargetScript script, bool free_memory);
 
 typedef struct {
     enum class TargetAction {
@@ -38,8 +39,6 @@ typedef struct {
         NONE // Ничего не делаем
     };
 
-    TargetAction PreAction1 = TargetAction::NONE;
-    TargetAction PreAction2 = TargetAction::NONE;
     TargetAction Action = TargetAction::NONE;
 
     PJVM JVM;
@@ -50,8 +49,16 @@ extern RuntimeLayer RuntimeInstance;
 
 BOOL SetActionRuntimeLayer(RuntimeLayer::TargetAction action);
 void UpdateRuntimeLayer();
+
+// Методы только для вызова в основном потоке dllMain,
+// для взаимодействия из вне (или другого потока) нужно испоьзовать
+// <>SetActionRuntimeLayer
 void InitializeRuntimeLayer();
 void CollectDataRuntimeLayer();
 void DeallocateRuntimeLayer();
+
+// Владелец обнаруженный malware_detect.py
+// и/или основной обработчик не валидных классов
+#define MALWARE_DETECT_OWNER "Invalid Class"
 
 #endif

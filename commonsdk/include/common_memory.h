@@ -6,6 +6,7 @@
 PV CommonMalloc(U64 Size);
 PV CommonCalloc(U64 Count, U64 BaseSize);
 PV CommonMemCopy(PV Dst, CPV Src, U64 Size);
+PV CommonRealloc(PV Dst, U64 Size);
 
 U64 CommonCalcString(CPI1 String);
 BOOL CommonFree(PV Pointer);

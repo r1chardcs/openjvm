@@ -15,6 +15,10 @@
 #include <thread>
 #include <chrono>
 
+#include "common_memory.h"
+
+U1 Out_Render_State = 1;
+
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 extern void CreateBaseImGuiStyle(ImGuiIO io);
 
@@ -36,15 +40,22 @@ static HWND g_fallbackHwnd = nullptr;
 static ImGuiContext* g_hookImGuiContext = nullptr;
 static ImGuiContext* g_fallbackImGuiContext = nullptr;
 
+COMMON_LIST(Renderable, RenderableList);
+
 static void WatchdogThreadProc();
 static void RunFallbackWindow();
 static LRESULT CALLBACK Fallback_WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
-void SetRenderable(Renderable renderable) {
-    current_renderable = renderable;
+void AddRenderable(Renderable renderable) {
+    if (!renderable.callback) return;
+
+    RenderableListSize++;
+    RenderableList = (Renderable*)CommonRealloc(RenderableList, sizeof(Renderable) * RenderableListSize);
+    RenderableList[RenderableListSize - 1] = renderable;
 }
 
 void InitializeOverlay() {
+
     if (MH_Initialize() != MH_OK) {
         Throw("Error initialize Hook's");
     }
@@ -93,6 +104,7 @@ static bool CreateMenuForWindow(HWND hwnd) {
     g_hookImGuiContext = ctx;
 
     ImGuiIO& io = ImGui::GetIO();
+    io.MouseDrawCursor = false;
 
     io.MouseDrawCursor = false;
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
@@ -188,10 +200,13 @@ static BOOL WINAPI detour_wglSwapBuffers(HDC unnamedParam1) {
         ImGui::NewFrame();
 
         CreateBaseImGuiStyle(ImGui::GetIO());
-        if (current_renderable.callback) {
-            current_renderable.callback({});
-        }
+        ImGui::GetIO().MouseDrawCursor = false;
 
+        if (Out_Render_State) {
+            for (unsigned i = 0; i < RenderableListSize; i++) {
+                if (RenderableList[i].callback) RenderableList[i].callback({});
+            }
+        }
         ImGui::EndFrame();
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

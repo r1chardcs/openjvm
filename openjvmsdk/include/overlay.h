@@ -15,8 +15,10 @@ typedef struct {
     RenderCallback callback = nullptr;
 }Renderable;
 
-void SetRenderable(Renderable renderable);
+void AddRenderable(Renderable renderable);
 void InitializeOverlay();
 void DestroyOverlay();
+
+extern U1 Out_Render_State;
 
 #endif

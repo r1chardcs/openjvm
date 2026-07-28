@@ -5,13 +5,8 @@
 
 
 int main() {
-    const auto script =
-        CreateTargetScript(0, "Test", R"(
-def check(header):
-    if (header["name"] == "my.cheat.class"):
-        return True
-    return False
-)", 100);
+
+    const auto script = ToTargetScript(GetScriptByID(1, "http://localhost:8000"));
 
     std::cout << script->name << '\n';
     std::cout << script->ring << '\n';
